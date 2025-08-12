@@ -1,0 +1,546 @@
+import React, { useState, useEffect } from 'react';
+
+// Importaciones de Firebase
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection as firestoreCollection, query, addDoc, serverTimestamp } from 'firebase/firestore';
+
+// Componente para la barra de navegación
+const Navbar = ({ currentPage, setCurrentPage }) => {
+  const navItems = [
+    { name: "Inicio", id: "home" },
+    { name: "Jugadores", id: "players" },
+    { name: "Partidos", id: "matches" },
+    { name: "Noticias", id: "news" },
+    { name: "Colección", id: "collection" },
+  ];
+
+  return (
+    <nav className="bg-white p-4 shadow-lg fixed bottom-0 left-0 w-full md:relative md:top-0 md:flex md:justify-center md:items-center z-50">
+      <ul className="flex justify-around items-center md:flex-row">
+        {navItems.map((item) => (
+          <li key={item.id}>
+            <button
+              onClick={() => setCurrentPage(item.id)}
+              className={`
+                text-gray-800 text-xs md:text-base font-bold py-2 px-4 rounded-full
+                transition-all duration-300 ease-in-out
+                ${currentPage === item.id ? 'bg-blue-600 text-white shadow-md' : 'hover:bg-gray-200'}
+              `}
+            >
+              {item.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+};
+
+// Datos de ejemplo para la aplicación. Ahora incluyen rareza para el álbum.
+const players = [
+  { id: 1, name: "Juan Pérez", position: "Pilar Izquierdo", rarity: 'común', imageUrl: "https://i.postimg.cc/tRzBfgXp/Jerofigu.png" },
+  { id: 2, name: "Lucas García", position: "Hooker", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 3, name: "Mateo Rodríguez", position: "Pilar Derecho", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 4, name: "Facundo Fernández", position: "Segunda Línea", rarity: 'raro', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 5, name: "Santiago López", position: "Segunda Línea", rarity: 'raro', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 6, name: "Tomás Sánchez", position: "Ala", rarity: 'épico', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 7, name: "Manuel Torres", position: "Ala", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 8, name: "Martín Sosa", position: "Octavo", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 9, name: "Ignacio Gil", position: "Medio Scrum", rarity: 'raro', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 10, name: "Federico Herrera", position: "Apertura", rarity: 'épico', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 11, name: "Pedro Acosta", position: "Wing", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 12, name: "Damián Castro", position: "Centro", rarity: 'raro', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 13, name: "Javier Varela", position: "Centro", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 14, name: "Esteban Quiroga", position: "Wing", rarity: 'épico', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+  { id: 15, name: "Guido Bianchi", position: "Fullback", rarity: 'común', imageUrl: "https://i.postimg.cc/4y2QBmp5/manufig.png" },
+];
+
+const matches = [
+  { id: 1, opponent: "Leones RC", date: "Sábado, 19 de Octubre", time: "15:00 hs", location: "Cancha Principal" },
+  { id: 2, opponent: "Cóndores RC", date: "Sábado, 26 de Octubre", time: "16:30 hs", location: "Cancha Visitante" },
+  { id: 3, opponent: "Halcones RC", date: "Sábado, 2 de Noviembre", time: "15:00 hs", location: "Cancha Principal" },
+];
+
+const news = [
+  { id: 1, title: "Gran Victoria del equipo A", content: "Nuestro equipo principal logró una victoria aplastante contra los Zorros RC en el partido inaugural de la temporada.", date: "12 de Octubre" },
+  { id: 2, title: "Convocatoria para nuevas categorías", content: "Invitamos a todos los jóvenes interesados en unirse al club para las categorías M15 y M17. Los entrenamientos inician la próxima semana.", date: "10 de Octubre" },
+];
+
+const teamPositions = [
+  { id: 1, position: 'Pilar Izquierdo' }, { id: 2, position: 'Hooker' }, { id: 3, position: 'Pilar Derecho' },
+  { id: 4, position: 'Segunda Línea' }, { id: 5, position: 'Segunda Línea' }, { id: 6, position: 'Ala' },
+  { id: 7, position: 'Ala' }, { id: 8, position: 'Octavo' }, { id: 9, position: 'Medio Scrum' },
+  { id: 10, position: 'Apertura' }, { id: 11, position: 'Wing' }, { id: 12, position: 'Centro' },
+  { id: 13, position: 'Centro' }, { id: 14, position: 'Wing' }, { id: 15, position: 'Fullback' },
+];
+
+const HomePage = () => (
+  <div className="flex flex-col items-center justify-center h-full text-center p-4">
+    <h1 className="text-4xl md:text-6xl font-extrabold text-gray-900 mb-4 animate-fadeIn">
+      Rugby Club Local
+    </h1>
+    <p className="text-xl md:text-2xl text-gray-600 mb-8 animate-fadeIn delay-200">
+      ¡Bienvenidos a la casa del rugby local!
+    </p>
+    <div className="bg-white p-6 rounded-3xl shadow-xl w-full max-w-lg animate-slideUp">
+      <p className="text-gray-800 text-lg">
+        Aquí encontrarás las últimas noticias, el calendario de partidos, los perfiles de tus jugadores favoritos y tu álbum virtual.
+      </p>
+    </div>
+  </div>
+);
+
+const PlayersPage = () => (
+  <div className="p-4 md:p-8">
+    <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Jugadores</h2>
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {players.map((player) => (
+        <div key={player.id} className="bg-white p-4 rounded-3xl shadow-lg text-center transform hover:scale-105 transition-transform duration-300">
+          <img
+            src={player.imageUrl}
+            alt={player.name}
+            className="w-24 h-24 md:w-32 md:h-32 mx-auto object-cover rounded-md mb-3"
+          />
+          <h3 className="text-lg font-semibold text-gray-900">{player.name}</h3>
+          <p className="text-sm text-gray-600">{player.position}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const MatchesPage = () => (
+  <div className="p-4 md:p-8">
+    <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Próximos Partidos</h2>
+    <div className="space-y-4">
+      {matches.map((match) => (
+        <div key={match.id} className="bg-white p-6 rounded-3xl shadow-lg">
+          <p className="text-gray-600 text-sm mb-1">{match.date} • {match.time}</p>
+          <h3 className="text-xl font-bold text-gray-900">{match.opponent}</h3>
+          <p className="text-gray-700">{match.location}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const NewsPage = () => (
+  <div className="p-4 md:p-8">
+    <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Noticias del Club</h2>
+    <div className="space-y-6">
+      {news.map((item) => (
+        <div key={item.id} className="bg-white p-6 rounded-3xl shadow-lg">
+          <h3 className="text-xl font-bold text-gray-900">{item.title}</h3>
+          <p className="text-gray-600 text-sm mb-2">{item.date}</p>
+          <p className="text-gray-800">{item.content}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const CollectionPage = ({ db, userId }) => {
+  const [collection, setCollection] = useState([]);
+  const [albumSlots, setAlbumSlots] = useState({});
+  const [lastPackTime, setLastPackTime] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [showTradeModal, setShowTradeModal] = useState(false);
+  
+  const [packToOpen, setPackToOpen] = useState(null);
+  const [currentStickerIndex, setCurrentStickerIndex] = useState(-1);
+
+  const rarityConfig = {
+    común: { percentage: 70 },
+    raro: { percentage: 25 },
+    épico: { percentage: 5 },
+  };
+
+  const hasPackAvailable = lastPackTime ? (Date.now() - lastPackTime > 72 * 60 * 60 * 1000) : true;
+  const timeUntilNextPack = lastPackTime ? (lastPackTime + 72 * 60 * 60 * 1000) - Date.now() : 0;
+
+  useEffect(() => {
+    if (!db || !userId) return;
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const userRef = doc(db, 'artifacts', appId, 'users', userId);
+    const collectionRef = firestoreCollection(userRef, 'collection');
+    const albumRef = firestoreCollection(userRef, 'album');
+
+    const unsubscribeCollection = onSnapshot(collectionRef, (snapshot) => {
+      const userCollection = [];
+      snapshot.forEach(doc => {
+        userCollection.push({ id: doc.id, ...doc.data() });
+      });
+      setCollection(userCollection);
+    }, (error) => {
+      console.error("Error fetching collection:", error);
+      setMessage("Error al cargar la colección.");
+    });
+
+    const unsubscribeAlbum = onSnapshot(albumRef, (snapshot) => {
+      const newAlbumSlots = {};
+      snapshot.forEach(doc => {
+        newAlbumSlots[doc.id] = doc.data().playerId;
+      });
+      setAlbumSlots(newAlbumSlots);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching album:", error);
+      setMessage("Error al cargar el álbum.");
+      setLoading(false);
+    });
+
+    const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+    getDoc(userDocRef).then(docSnap => {
+      if (docSnap.exists() && docSnap.data().lastPackTime) {
+        setLastPackTime(docSnap.data().lastPackTime.toDate().getTime());
+      }
+    }).catch(error => console.error("Error fetching last pack time:", error));
+
+    return () => {
+      unsubscribeCollection();
+      unsubscribeAlbum();
+    };
+  }, [db, userId]);
+  
+  const generatePack = () => {
+    if (!hasPackAvailable) {
+      setMessage("Debes esperar 72 horas para abrir otro sobre.");
+      return;
+    }
+    
+    const newPack = [];
+    const packSize = 5;
+    for (let i = 0; i < packSize; i++) {
+      let randomNumber = Math.random() * 100;
+      let sticker;
+      if (randomNumber < rarityConfig.épico.percentage) {
+        sticker = players.find(p => p.rarity === 'épico');
+      } else if (randomNumber < rarityConfig.épico.percentage + rarityConfig.raro.percentage) {
+        sticker = players.find(p => p.rarity === 'raro');
+      } else {
+        sticker = players.find(p => p.rarity === 'común');
+      }
+      if (sticker) {
+        newPack.push(sticker);
+      }
+    }
+    setPackToOpen(newPack);
+    setCurrentStickerIndex(0);
+    setMessage("¡Haz clic en la figurita para ver la siguiente!");
+  };
+
+  const handleStickerAction = async (action, sticker) => {
+    try {
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      const userRef = doc(db, 'artifacts', appId, 'users', userId);
+      const collectionRef = firestoreCollection(userRef, 'collection');
+      const albumRef = firestoreCollection(userRef, 'album');
+
+      await addDoc(collectionRef, {
+        playerId: sticker.id,
+        playerName: sticker.name,
+        position: sticker.position,
+        rarity: sticker.rarity,
+        imageUrl: sticker.imageUrl,
+        timestamp: serverTimestamp(),
+        isPasted: action === 'pegar',
+      });
+
+      if (action === 'pegar' && !albumSlots[sticker.id]) {
+        const slotDocRef = doc(albumRef, String(sticker.id));
+        await setDoc(slotDocRef, {
+          playerId: sticker.id,
+          playerName: sticker.name,
+        });
+      }
+
+      const nextIndex = currentStickerIndex + 1;
+      if (nextIndex < packToOpen.length) {
+        setCurrentStickerIndex(nextIndex);
+        setMessage(`Has revelado ${nextIndex + 1} de ${packToOpen.length} figuritas. ¡Haz clic para la siguiente!`);
+      } else {
+        setMessage("¡Colección actualizada! Revisa tu álbum.");
+        await setDoc(userRef, { lastPackTime: new Date() }, { merge: true });
+        setLastPackTime(Date.now());
+        setPackToOpen(null);
+        setCurrentStickerIndex(-1);
+      }
+    } catch (error) {
+      console.error("Error al manejar figurita:", error);
+      setMessage("Ocurrió un error al guardar tu figurita.");
+    }
+  };
+
+  const getRarityColor = (rarity) => {
+    switch (rarity) {
+      case 'común': return 'bg-gray-400';
+      case 'raro': return 'bg-blue-500';
+      case 'épico': return 'bg-yellow-500';
+      default: return 'bg-gray-400';
+    }
+  };
+
+  const collectedPlayerIds = new Set(Object.values(albumSlots));
+  const repeatedStickers = players.map(player => {
+    const count = collection.filter(s => s.playerId === player.id && s.isPasted === false).length;
+    return { ...player, count };
+  }).filter(p => p.count > 0);
+
+
+  const formatTime = (ms) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours}h ${minutes}m ${seconds}s`;
+  };
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-900 text-lg">
+        Cargando colección...
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 bg-gray-100 min-h-screen">
+      <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">Mi Álbum de Figuritas</h2>
+      <p className="text-center text-gray-600 mb-4">ID de Usuario: {userId}</p>
+
+      {message && (
+        <div className="bg-blue-600 text-white p-3 rounded-2xl text-center mb-4 transition-all duration-300 animate-slideIn">
+          {message}
+        </div>
+      )}
+
+      {/* Seccion de sobres y canjes */}
+      <div className="flex flex-col md:flex-row gap-4 mb-8">
+        <div className="bg-white p-6 rounded-3xl shadow-lg flex-1 text-center flex flex-col justify-center items-center">
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Sobres</h3>
+          <p className="text-gray-600 mb-4">Abre un sobre para conseguir nuevas figuritas.</p>
+          
+          {!packToOpen ? (
+            <button
+              onClick={generatePack}
+              disabled={!hasPackAvailable}
+              className={`
+                w-full py-3 px-6 rounded-full font-bold text-lg
+                transition-all duration-300 ease-in-out
+                ${hasPackAvailable ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-400 text-gray-600 cursor-not-allowed'}
+              `}
+            >
+              {hasPackAvailable ? 'Abrir Nuevo Sobre' : `Siguiente sobre en ${formatTime(timeUntilNextPack)}`}
+            </button>
+          ) : (
+             <div className="flex flex-col items-center">
+               <div className="relative w-48 h-64 mx-auto perspective">
+                 {/* Figuras del sobre */}
+                 {packToOpen.map((sticker, index) => (
+                   <div 
+                     key={index}
+                     className={`
+                       absolute inset-0 p-2 transform transition-all duration-500
+                       ${index === currentStickerIndex ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 scale-75 rotate-12'}
+                     `}
+                   >
+                     <div className={`
+                       w-full h-full rounded-2xl shadow-lg flex flex-col items-center justify-center p-2
+                       ${getRarityColor(sticker.rarity)}
+                     `}>
+                       <img
+                         src={sticker.imageUrl}
+                         alt={sticker.name}
+                         className="w-20 h-20 md:w-24 md:h-24 mx-auto object-cover rounded-md mb-1"
+                       />
+                       <h3 className="text-sm font-semibold text-white text-center">{sticker.name}</h3>
+                       <p className="text-xs text-gray-200 text-center">{sticker.position}</p>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+               
+               {/* Botones de acción */}
+               <div className="mt-4 flex gap-4">
+                  <button
+                    onClick={() => handleStickerAction('pegar', packToOpen[currentStickerIndex])}
+                    disabled={!!albumSlots[packToOpen[currentStickerIndex].id]}
+                    className={`
+                      py-2 px-4 rounded-full font-bold text-white shadow-md
+                      ${!!albumSlots[packToOpen[currentStickerIndex].id]
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                      }
+                    `}
+                  >
+                    {!!albumSlots[packToOpen[currentStickerIndex].id] ? 'Ya Pegada' : 'Pegar'}
+                  </button>
+                  <button
+                    onClick={() => handleStickerAction('almacenar', packToOpen[currentStickerIndex])}
+                    className="py-2 px-4 rounded-full bg-gray-500 hover:bg-gray-600 text-white font-bold shadow-md"
+                  >
+                    Almacenar
+                  </button>
+               </div>
+             </div>
+          )}
+        </div>
+        <div className="bg-white p-6 rounded-3xl shadow-lg flex-1 text-center">
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">Canje</h3>
+          <p className="text-gray-600 mb-4">Canjea tus figuritas repetidas con otros usuarios.</p>
+          <button
+            onClick={() => setShowTradeModal(true)}
+            className="w-full py-3 px-6 rounded-full bg-green-600 hover:bg-green-700 font-bold text-lg transition-colors duration-300 shadow-md text-white"
+          >
+            Ver Canjes
+          </button>
+        </div>
+      </div>
+      
+      {/* Visualización del álbum con la imagen de tu diseño */}
+      <div className="relative w-full overflow-hidden rounded-lg shadow-2xl" style={{ paddingTop: '75%' }}>
+        <img
+          src="https://i.postimg.cc/CMJ476NK/album.png"
+          alt="Diseño del álbum de Panini"
+          className="absolute inset-0 w-full h-full object-contain"
+        />
+        {/* Aquí se colocan dinámicamente las figuritas pegadas */}
+        {players.map(player => {
+          const isPasted = !!albumSlots[player.id];
+          const playerPosition = teamPositions.find(pos => pos.id === player.id)?.position;
+          
+          // Coordenadas para el diseño de tu álbum.
+          const stickerPositions = {
+            1: { top: '20%', left: '11%' },
+            2: { top: '33%', left: '33%' },
+            3: { top: '33%', left: '45%' },
+            4: { top: '50%', left: '21%' },
+            5: { top: '50%', left: '33%' },
+            6: { top: '50%', left: '45%' },
+            7: { top: '67%', left: '21%' },
+            8: { top: '67%', left: '33%' },
+            9: { top: '67%', left: '45%' },
+            10: { top: '33%', left: '57%' },
+            11: { top: '50%', left: '57%' },
+            12: { top: '67%', left: '57%' },
+            13: { top: '33%', left: '79%' }, 
+            14: { top: '50%', left: '79%' },
+            15: { top: '67%', left: '79%' },
+          };
+          
+          if (isPasted && stickerPositions[player.id]) {
+            return (
+              <div 
+                key={`pasted-${player.id}`}
+                className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                style={{ top: stickerPositions[player.id].top, left: stickerPositions[player.id].left }}
+              >
+                <img
+                  src={player.imageUrl}
+                  alt={player.name}
+                  className="w-[110px] h-[130px]"
+                />
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+      
+      {/* Modal de Canjes */}
+      {showTradeModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-6 rounded-3xl max-w-lg w-full shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-bold text-gray-900">Mis Figuritas Repetidas</h3>
+              <button onClick={() => setShowTradeModal(false)} className="text-gray-400 hover:text-gray-700 text-2xl font-bold">&times;</button>
+            </div>
+            <p className="text-gray-600 mb-4">Aquí puedes ver tus figuritas repetidas.</p>
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {repeatedStickers.length > 0 ? (
+                repeatedStickers.map(player => (
+                  <div key={player.id} className="flex items-center bg-gray-200 p-3 rounded-2xl shadow">
+                    <img src={player.imageUrl} alt={player.name} className="w-12 h-18 object-contain rounded-md mr-4"/>
+                    <div>
+                      <p className="text-gray-900 font-bold">{player.name}</p>
+                      <p className="text-sm text-gray-600">Repetidas: {player.count}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-gray-600">No tienes figuritas repetidas.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const App = () => {
+  const [currentPage, setCurrentPage] = useState("home");
+  const [db, setDb] = useState(null);
+  const [auth, setAuth] = useState(null);
+  const [userId, setUserId] = useState(null);
+
+  useEffect(() => {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    if (Object.keys(firebaseConfig).length > 0) {
+      const app = initializeApp(firebaseConfig);
+      const firestore = getFirestore(app);
+      const authInstance = getAuth(app);
+      setDb(firestore);
+      setAuth(authInstance);
+
+      onAuthStateChanged(authInstance, async (user) => {
+        if (user) {
+          setUserId(user.uid);
+        } else {
+          try {
+            if (initialAuthToken) {
+              await signInWithCustomToken(authInstance, initialAuthToken);
+            } else {
+              await signInAnonymously(authInstance);
+            }
+          } catch (error) {
+            console.error("Error signing in:", error);
+          }
+        }
+      });
+    }
+  }, []);
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case "players":
+        return <PlayersPage />;
+      case "matches":
+        return <MatchesPage />;
+      case "news":
+        return <NewsPage />;
+      case "collection":
+        return <CollectionPage db={db} userId={userId} />;
+      case "home":
+      default:
+        return <HomePage />;
+    }
+  };
+
+  return (
+    <div className="font-sans antialiased bg-gray-100 min-h-screen">
+      <div className="p-4 pb-20 md:pb-4 md:pt-4 max-w-4xl mx-auto">
+        {renderPage()}
+      </div>
+      <Navbar currentPage={currentPage} setCurrentPage={setCurrentPage} />
+    </div>
+  );
+};
+
+export default App;
