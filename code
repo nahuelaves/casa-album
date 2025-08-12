@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 
 // Importaciones de Firebase
-import { initializeApp } from 'firebase/app';
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection as firestoreCollection, query, addDoc, serverTimestamp } from 'firebase/firestore';
+
 
 // Componente para la barra de navegación
 const Navbar = ({ currentPage, setCurrentPage }) => {
@@ -488,12 +490,23 @@ const App = () => {
   const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    // Aquí se corrige el uso de variables de entorno para una ejecución local.
+    const firebaseConfig = {
+      apiKey: "AIzaSyAKniTb0NbQG3LgenMw31Z9L7pC76BYzl4",
+      authDomain: "casaalbum-a7ba7.firebaseapp.com",
+      projectId: "casaalbum-a7ba7",
+      storageBucket: "casaalbum-a7ba7.firebasestorage.app",
+      messagingSenderId: "777875268478",
+      appId: "1:777875268478:web:7caf69dbc3ee101a81c92f",
+      measurementId: "G-YD5HRMZEH9"
+    };
+
+    const appId = "default-app-id";
+    const initialAuthToken = null;
 
     if (Object.keys(firebaseConfig).length > 0) {
       const app = initializeApp(firebaseConfig);
+      getAnalytics(app);
       const firestore = getFirestore(app);
       const authInstance = getAuth(app);
       setDb(firestore);
