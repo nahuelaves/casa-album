@@ -483,52 +483,48 @@ const CollectionPage = ({ db, userId }) => {
   );
 };
 
+// Se inicializa Firebase fuera del componente para evitar re-inicializaciones
+const firebaseConfig = {
+  apiKey: "AIzaSyAKniTb0NbQG3LgenMw31Z9L7pC76BYzl4",
+  authDomain: "casaalbum-a7ba7.firebaseapp.com",
+  projectId: "casaalbum-a7ba7",
+  storageBucket: "casaalbum-a7ba7.firebasestorage.app",
+  messagingSenderId: "777875268478",
+  appId: "1:777875268478:web:7caf69dbc3ee101a81c92f",
+  measurementId: "G-YD5HRMZEH9"
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const analytics = getAnalytics(firebaseApp);
+const firestore = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
+
 const App = () => {
   const [currentPage, setCurrentPage] = useState("home");
-  const [db, setDb] = useState(null);
-  const [auth, setAuth] = useState(null);
+  const [db, setDb] = useState(firestore);
+  const [authInstance, setAuthInstance] = useState(auth);
   const [userId, setUserId] = useState(null);
-
+  
   useEffect(() => {
-    // Aquí se corrige el uso de variables de entorno para una ejecución local.
-    const firebaseConfig = {
-      apiKey: "AIzaSyAKniTb0NbQG3LgenMw31Z9L7pC76BYzl4",
-      authDomain: "casaalbum-a7ba7.firebaseapp.com",
-      projectId: "casaalbum-a7ba7",
-      storageBucket: "casaalbum-a7ba7.firebasestorage.app",
-      messagingSenderId: "777875268478",
-      appId: "1:777875268478:web:7caf69dbc3ee101a81c92f",
-      measurementId: "G-YD5HRMZEH9"
-    };
+    // Si la autenticación ya está lista, no hacemos nada.
+    if (!authInstance) return;
 
-    const appId = "default-app-id";
-    const initialAuthToken = null;
-
-    if (Object.keys(firebaseConfig).length > 0) {
-      const app = initializeApp(firebaseConfig);
-      getAnalytics(app);
-      const firestore = getFirestore(app);
-      const authInstance = getAuth(app);
-      setDb(firestore);
-      setAuth(authInstance);
-
-      onAuthStateChanged(authInstance, async (user) => {
-        if (user) {
-          setUserId(user.uid);
-        } else {
-          try {
-            if (initialAuthToken) {
-              await signInWithCustomToken(authInstance, initialAuthToken);
-            } else {
-              await signInAnonymously(authInstance);
-            }
-          } catch (error) {
-            console.error("Error signing in:", error);
+    onAuthStateChanged(authInstance, async (user) => {
+      if (user) {
+        setUserId(user.uid);
+      } else {
+        try {
+          const initialAuthToken = null;
+          if (initialAuthToken) {
+            await signInWithCustomToken(authInstance, initialAuthToken);
+          } else {
+            await signInAnonymously(authInstance);
           }
+        } catch (error) {
+          console.error("Error signing in:", error);
         }
-      });
-    }
-  }, []);
+      }
+    });
+  }, [authInstance]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -554,6 +550,10 @@ const App = () => {
       <Navbar currentPage={currentPage} setCurrentPage={setCurrentPage} />
     </div>
   );
+};
+
+export default App;
+
 };
 
 export default App;
