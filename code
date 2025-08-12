@@ -165,7 +165,7 @@ const CollectionPage = ({ db, userId }) => {
   useEffect(() => {
     if (!db || !userId) return;
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const appId = "casaalbum-a7ba7";
     const userRef = doc(db, 'artifacts', appId, 'users', userId);
     const collectionRef = firestoreCollection(userRef, 'collection');
     const albumRef = firestoreCollection(userRef, 'album');
@@ -236,7 +236,7 @@ const CollectionPage = ({ db, userId }) => {
 
   const handleStickerAction = async (action, sticker) => {
     try {
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+      const appId = "casaalbum-a7ba7";
       const userRef = doc(db, 'artifacts', appId, 'users', userId);
       const collectionRef = firestoreCollection(userRef, 'collection');
       const albumRef = firestoreCollection(userRef, 'album');
